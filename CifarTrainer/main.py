@@ -1,16 +1,39 @@
 import sys
 import os, random
-import tensorflow as tf
-import tf.keras as keras
-import tensorflow.keras as keras
+import torch
+import torch.nn as nn
+from torch.autograd import Variable
+import torch.utils.data as Data
+import torchvision
 import matplotlib.pyplot as plt
 import numpy as np
-cifar10 = tf.keras.datasets.cifar10
 
+print('version :' , torch.__version__)
+print('cuda :' , torch.cuda.is_available())
+print('cudnn :' , torch.backends.cudnn.enabled)
 from PyQt5.QtWidgets import QMainWindow, QApplication
 from PyQt5 import QtWidgets, uic
 from tensorboard.plugins.hparams import api as hp
 
+EPOCH = 100
+BATCH_SIZE = 32
+LR = 0.001
+DOWNLOAD_data = True
+
+train_data = torchvision.datasets.CIFAR10(
+    root = './data',
+    train = True,
+    transform=torchvision.transforms.ToTensor(), #改成torch可讀
+    download=DOWNLOAD_data,
+)
+
+print(len(train_data.train_data))
+print(len(train_data.train_labels))
+for i in range(5):    
+    img = np.asarray(train_data.train_data[i])
+    plt.imshow(img, cmap='gray')
+    plt.title('%i' % train_data.train_labels[i])
+    plt.show()
 
 label_dict = {
 	0 : 'airplane'	,
@@ -26,24 +49,19 @@ label_dict = {
 }
 
 
-# Load Cifar-10 datasets from keras
-(x_train, y_train), (x_test, y_test) = cifar10.load_data()
+# # Shuffle training datasets
+# train_num = len(x_train)
+# train_index = np.arange(train_num)
+# np.random.shuffle(train_index)
+# x_train = x_train[train_index]
+# y_train = y_train[train_index]
 
-# Shuffle training datasets
-train_num = len(x_train)
-train_index = np.arange(train_num)
-np.random.shuffle(train_index)
-x_train = x_train[train_index]
-y_train = y_train[train_index]
-
-# Shuffle testing datasets
-test_num = len(x_test)
-test_index = np.arange(test_num)
-np.random.shuffle(test_index)
-x_test = x_test[test_index]
-y_test = y_test[test_index]
-
-print(len(x_train[0][0]))
+# # Shuffle testing datasets
+# test_num = len(x_test)
+# test_index = np.arange(test_num)
+# np.random.shuffle(test_index)
+# x_test = x_test[test_index]
+# y_test = y_test[test_index]
 
 
 # Load ui
@@ -51,19 +69,37 @@ path = os.getcwd()
 qtCreatorFile = path + os.sep + "mainwindow.ui"
 Ui_MainWindow, QtBaseClass = uic.loadUiType(qtCreatorFile) 
 
-# Build model
-def conv2d(x, ft, b, strides, padding):
-    x = tf.nn.conv2d(x, ft, strides=[1, strides, strides, 1], padding=padding)
-    x = tf.nn.bias_add(x, b)
-    return tf.nn.relu(x)
-
-
-def maxpool2d(x, k, padding):
-    return tf.nn.max_pool(
-        x,
-        ksize=[1, k, k, 1],
-        strides=[1, k, k, 1],
-        padding=padding)
+class CNN(nn.Module):
+    def __init__(self):
+        super(CNN, self).__init__()
+        self.conv1 = nn.Sequential(       
+            nn.Conv2d(1,6,(5, 5),1),
+			nn.ReLU(),
+            nn.MaxPool2d((2, 2), 2),              
+        )
+        self.conv2 = nn.Sequential(       
+            nn.Conv2d(6,16,(5, 5),1),
+			nn.ReLU(),
+            nn.MaxPool2d((2, 2), 2),
+        )
+		self.conv3 = nn.Sequential(       
+            nn.Conv2d(16,120,(5, 5),1),
+			nn.ReLU(),
+        )
+		self.fc = nn.Sequential(
+			nn.Linear(120, 84),
+			nn.ReLU(),
+			nn.Linear(84, 10)
+			nn.LogSoftmax(dim=-1)
+		)  
+        
+    def forward(self, x):
+        output = self.conv1(output)
+        output = self.conv2(output)
+		output = self.conv3(output)
+        output = output.view(output.size(0), -1)	# flatening
+        output = self.fc(output)
+        return output
 
 # Set up ui
 class MainWindow(QMainWindow, Ui_MainWindow):
@@ -88,10 +124,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 	# Show ten pictures randomly from datasets
 	def showImages(self):
 		for i in range(0, 10):
-			idx = random.randint(0, train_num)
+			idx = random.randint(0, len(train_data.train_data))
+			img = np.asarray(train_data.train_data[idx])
 			ax = plt.subplot(2, 5, i+1)
-			ax.imshow(x_train[idx], cmap='binary')
-			title = label_dict[(y_train[idx][0])]
+			ax.imshow(train_data.train_data[idx], cmap='binary')
+			title = label_dict[(train_data.train_labels[idx][0])]
 			ax.set_title(title, fontsize=10, y=-0.3)
 			ax.axis('off')
 		plt.show()
@@ -99,19 +136,17 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 	
 	def showHyperparameters(self):
 		print('hyperparameters:')
-		print('batch size: ' + str(self.batch_size))
-		print('learning rate: ' + str(self.learning_rate))
-		print('optimizer: ' + str.upper(self.optimizer))
+		print('batch size: ' + str(BATCH_SIZE))
+		print('learning rate: ' + str(LR))
+		print('optimizer: SGD')
 	
-	def: trainEpoch(self):
+	def trainEpoch(self):
 		model = tf.keras.models.Sequential([
     		tf.keras.layers.Flatten(),
 			tf.keras.layers.Dense(hparams[HP_NUM_UNITS], activation=tf.nn.relu),
     		tf.keras.layers.Dropout(hparams[HP_DROPOUT]),
     		tf.keras.layers.Dense(10, activation=tf.nn.softmax),
   		])
-		
-	
 		
 
 if __name__ == "__main__":
