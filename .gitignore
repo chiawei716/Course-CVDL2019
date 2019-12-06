@@ -1,2 +1,12 @@
 
 HW1/Debug/
+
+OpenCV/Debug/
+
+OpenCV/.vs/
+
+OpenCV/App/Debug/
+
+OpenCV/ipch/
+
+*.db
